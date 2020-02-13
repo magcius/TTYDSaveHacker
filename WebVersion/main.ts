@@ -154,11 +154,9 @@ function fileSubmitted(): void {
     const fileNumberInput = document.querySelector<HTMLSelectElement>('select#filenumber');
     const fileNumber = Number(fileNumberInput.selectedOptions[0].textContent);
 
-    const outputFilename = `${file.name.replace(/\..*$/, '')} REL Loader.gci`;
+    const outputFilename = `${file.name.replace(/\..*$/, '')}_REL_Loader.gci`;
     const reader = new FileReader();
-    console.log('yay!');
     reader.onload = () => {
-        console.log('yay 2!');
         const buffer = reader.result as ArrayBuffer;
         const view = new DataView(buffer);
         const res = patch(view, fileNumber);
