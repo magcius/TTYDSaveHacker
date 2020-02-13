@@ -1,0 +1,24 @@
+# Code created by Zephiles
+
+# Pointer to the current follower is passed into this function, and needs to be passed into the main function
+
+# Get the index for the file loaded
+lwz r4,-0x6640(r13)
+lwz r4,0x20(r4)
+
+# Adjust the index to be in multiples of 0x4000 bytes
+rlwinm r4,r4,14,0,17
+
+# Add the offset to the current file data, as well as the offset to the main function
+addi r4,r4,0x4140 # 0x2000 to current file data, 0x2140 to the main function
+
+# Get the Card File pointer
+lwz r5,0x1638(r13)
+lwz r5,0xA8(r5)
+
+# Get the start of the memory for the current file
+add r12,r5,r4
+
+# Jump to the main function
+mtctr r12
+bctr
