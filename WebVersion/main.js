@@ -116,9 +116,28 @@ function downloadFile(filename, data) {
     elem.click();
     document.body.removeChild(elem);
 }
+function displayResult(e) {
+    var errorMessage = document.querySelector('div#errormessage');
+    if (e === 0 /* Success */) {
+        errorMessage.textContent = '';
+        return true;
+    }
+    else if (e === 1 /* InvalidSaveFile */) {
+        errorMessage.textContent = 'The file you specified was not a valid .gci save file';
+        return false;
+    }
+    else if (e === 2 /* InvalidFileNumber */) {
+        // should not happen
+        throw "whoops";
+    }
+}
 function fileSubmitted() {
     var input = document.querySelector('input#fileupload');
     var file = input.files[0];
+    if (!file.name.endsWith('.gci')) {
+        if (!displayResult(1 /* InvalidSaveFile */))
+            return;
+    }
     var fileNumberInput = document.querySelector('select#filenumber');
     var fileNumber = Number(fileNumberInput.selectedOptions[0].textContent);
     var outputFilename = file.name.replace(/\..*$/, '') + "_REL_Loader.gci";
@@ -127,8 +146,8 @@ function fileSubmitted() {
         var buffer = reader.result;
         var view = new DataView(buffer);
         var res = patch(view, fileNumber);
-        if (res !== 0 /* Success */)
-            alert(res);
+        if (!displayResult(res))
+            return;
         downloadFile(outputFilename, buffer);
     };
     reader.readAsArrayBuffer(file);

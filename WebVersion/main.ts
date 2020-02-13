@@ -147,9 +147,29 @@ function downloadFile(filename: string, data: ArrayBuffer): void {
     document.body.removeChild(elem);
 }
 
+function displayResult(e: PatchErrorCode): boolean {
+    const errorMessage = document.querySelector<HTMLDivElement>('div#errormessage');
+
+    if (e === PatchErrorCode.Success) {
+        errorMessage.textContent = '';
+        return true;
+    } else if (e === PatchErrorCode.InvalidSaveFile) {
+        errorMessage.textContent = 'The file you specified was not a valid .gci save file';
+        return false;
+    } else if (e === PatchErrorCode.InvalidFileNumber) {
+        // should not happen
+        throw "whoops";
+    }
+}
+
 function fileSubmitted(): void {
     const input = document.querySelector<HTMLInputElement>('input#fileupload');
     const file = input.files[0];
+
+    if (!file.name.endsWith('.gci')) {
+        if (!displayResult(PatchErrorCode.InvalidSaveFile))
+            return;
+    }
 
     const fileNumberInput = document.querySelector<HTMLSelectElement>('select#filenumber');
     const fileNumber = Number(fileNumberInput.selectedOptions[0].textContent);
@@ -160,8 +180,8 @@ function fileSubmitted(): void {
         const buffer = reader.result as ArrayBuffer;
         const view = new DataView(buffer);
         const res = patch(view, fileNumber);
-        if (res !== PatchErrorCode.Success)
-            alert(res);
+        if (!displayResult(res))
+            return;
         downloadFile(outputFilename, buffer);
     }
     reader.readAsArrayBuffer(file);
