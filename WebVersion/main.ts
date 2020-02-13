@@ -42,7 +42,9 @@ function decodeBinaryData(S: string): ArrayBuffer {
 
 const enum PatchErrorCode {
     Success,
-    InvalidSaveFile,
+    NotSaveFile,
+    WrongSaveFileGameID,
+    WrongSaveFileInternalName,
     InvalidFileNumber,
 }
 
@@ -51,11 +53,11 @@ function patch(view: DataView, fileNumber: number): PatchErrorCode {
 
     const validVersions = [GameVersion.JP, GameVersion.US, GameVersion.EU];
     if (!validVersions.includes(version))
-        return PatchErrorCode.InvalidSaveFile;
+        return PatchErrorCode.WrongSaveFileGameID;
 
     const internalFilename = readString(view.buffer, 0x08, 0x11);
     if (internalFilename !== 'mariost_save_file')
-        return PatchErrorCode.InvalidSaveFile;
+        return PatchErrorCode.WrongSaveFileInternalName;
 
     if (fileNumber < 1 || fileNumber > 4)
         return PatchErrorCode.InvalidFileNumber;
@@ -153,8 +155,14 @@ function displayResult(e: PatchErrorCode): boolean {
     if (e === PatchErrorCode.Success) {
         errorMessage.textContent = '';
         return true;
-    } else if (e === PatchErrorCode.InvalidSaveFile) {
+    } else if (e === PatchErrorCode.NotSaveFile) {
         errorMessage.textContent = 'The file you specified was not a valid .gci save file';
+        return false;
+    } else if (e === PatchErrorCode.WrongSaveFileGameID) {
+        errorMessage.textContent = 'This save file is not for Paper Mario: The Thousand Year Door';
+        return false;
+    } else if (e === PatchErrorCode.WrongSaveFileInternalName) {
+        errorMessage.textContent = 'This save file has the wrong internal ID. Please make sure you are using a normal Paper Mario: The Thousand Year Door save file.';
         return false;
     } else if (e === PatchErrorCode.InvalidFileNumber) {
         // should not happen
@@ -167,7 +175,7 @@ function fileSubmitted(): void {
     const file = input.files[0];
 
     if (!file.name.endsWith('.gci')) {
-        if (!displayResult(PatchErrorCode.InvalidSaveFile))
+        if (!displayResult(PatchErrorCode.NotSaveFile))
             return;
     }
 
