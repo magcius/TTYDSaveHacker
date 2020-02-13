@@ -121,11 +121,9 @@ function fileSubmitted() {
     var file = input.files[0];
     var fileNumberInput = document.querySelector('select#filenumber');
     var fileNumber = Number(fileNumberInput.selectedOptions[0].textContent);
-    var outputFilename = file.name.replace(/\..*$/, '') + " REL Loader.gci";
+    var outputFilename = file.name.replace(/\..*$/, '') + "_REL_Loader.gci";
     var reader = new FileReader();
-    console.log('yay!');
     reader.onload = function () {
-        console.log('yay 2!');
         var buffer = reader.result;
         var view = new DataView(buffer);
         var res = patch(view, fileNumber);
