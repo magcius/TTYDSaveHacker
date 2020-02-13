@@ -32,12 +32,12 @@ function patch(view, fileNumber) {
     var version = readString(view.buffer, 0x00, 0x06);
     var validVersions = ["G8MJ01" /* JP */, "G8ME01" /* US */, "G8MP01" /* EU */];
     if (!validVersions.includes(version))
-        return 1 /* InvalidSaveFile */;
+        return 2 /* WrongSaveFileGameID */;
     var internalFilename = readString(view.buffer, 0x08, 0x11);
     if (internalFilename !== 'mariost_save_file')
-        return 1 /* InvalidSaveFile */;
+        return 3 /* WrongSaveFileInternalName */;
     if (fileNumber < 1 || fileNumber > 4)
-        return 2 /* InvalidFileNumber */;
+        return 4 /* InvalidFileNumber */;
     var offsetFile0 = ((fileNumber - 1) * 0x4000) + 0x2040;
     var offsetFile1 = offsetFile0 + 0x10000;
     function patchFilesU16(offset, value) {
@@ -116,9 +116,36 @@ function downloadFile(filename, data) {
     elem.click();
     document.body.removeChild(elem);
 }
+function displayResult(e) {
+    var errorMessage = document.querySelector('div#errormessage');
+    if (e === 0 /* Success */) {
+        errorMessage.textContent = '';
+        return true;
+    }
+    else if (e === 1 /* NotSaveFile */) {
+        errorMessage.textContent = 'The file you specified was not a valid .gci save file';
+        return false;
+    }
+    else if (e === 2 /* WrongSaveFileGameID */) {
+        errorMessage.textContent = 'This save file is not for Paper Mario: The Thousand Year Door';
+        return false;
+    }
+    else if (e === 3 /* WrongSaveFileInternalName */) {
+        errorMessage.textContent = 'This save file has the wrong internal ID. Please make sure you are using a normal Paper Mario: The Thousand Year Door save file.';
+        return false;
+    }
+    else if (e === 4 /* InvalidFileNumber */) {
+        // should not happen
+        throw "whoops";
+    }
+}
 function fileSubmitted() {
     var input = document.querySelector('input#fileupload');
     var file = input.files[0];
+    if (!file.name.endsWith('.gci')) {
+        if (!displayResult(1 /* NotSaveFile */))
+            return;
+    }
     var fileNumberInput = document.querySelector('select#filenumber');
     var fileNumber = Number(fileNumberInput.selectedOptions[0].textContent);
     var outputFilename = file.name.replace(/\..*$/, '') + "_REL_Loader.gci";
@@ -127,8 +154,8 @@ function fileSubmitted() {
         var buffer = reader.result;
         var view = new DataView(buffer);
         var res = patch(view, fileNumber);
-        if (res !== 0 /* Success */)
-            alert(res);
+        if (!displayResult(res))
+            return;
         downloadFile(outputFilename, buffer);
     };
     reader.readAsArrayBuffer(file);
