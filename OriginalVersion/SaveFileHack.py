@@ -2,6 +2,8 @@
 import binascii
 import sys
 
+# Script created by Zephiles
+
 # stringToInt taken from text_to_bits from here:
 # https://stackoverflow.com/questions/7396849/convert-binary-to-ascii-and-vice-versa
 def stringToInt(string, encoding='utf-8', errors='surrogatepass'):
