@@ -1,4 +1,6 @@
-# Original code written by PistonMiner
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2020 Linus S. (aka PistonMiner)
+
 # Modifications made by Zephiles
 
 # Set global function/variable/offset locations/values
