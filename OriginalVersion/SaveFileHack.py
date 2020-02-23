@@ -2,24 +2,22 @@
 import binascii
 import sys
 
-# Script created by Zephiles
-
 # stringToInt taken from text_to_bits from here:
 # https://stackoverflow.com/questions/7396849/convert-binary-to-ascii-and-vice-versa
-def stringToInt(string, encoding='utf-8', errors='surrogatepass'):
+def stringToInt(string, encoding="utf-8", errors="surrogatepass"):
 	bits = bin(int(binascii.hexlify(string.encode(encoding, errors)), 16))[2:]
 	return int(bits.zfill(8 * ((len(bits) + 7) // 8)), 2)
 
 # Make sure something was passed in
 if len(sys.argv) < 2:
 	input("You must pass in a proper TTYD gci file. Press Enter to close this window.")
-	sys.exit('')
+	sys.exit("")
 
 # Make sure what was passed in is a gci file
 FileName = sys.argv[1]
 if not FileName.endswith(".gci"):
 	input("You must pass in a proper TTYD gci file. Press Enter to close this window.")
-	sys.exit('')
+	sys.exit("")
 
 # Check if the file number was passed in
 FileNumberString = ""
@@ -54,7 +52,7 @@ FileNumber = int(FileNumberString)
 f = open(FileName, "r+b")
 
 # Get the game id
-GameId = int.from_bytes(f.read(6), byteorder='big', signed=False)
+GameId = int.from_bytes(f.read(6), byteorder="big", signed=False)
 
 # Set up the values for the three retail game ids
 ID_JP = stringToInt("G8MJ01")
@@ -65,11 +63,11 @@ ID_EU = stringToInt("G8MP01")
 if (GameId != ID_JP) and (GameId != ID_US) and (GameId != ID_EU):
 	f.close()
 	input("You must pass in a proper TTYD gci file. Press Enter to close this window.")
-	sys.exit('')
+	sys.exit("")
 
 # Get the internal filename
 f.seek(0x8, 0)
-InternalName = int.from_bytes(f.read(17), byteorder='big', signed=False)
+InternalName = int.from_bytes(f.read(17), byteorder="big", signed=False)
 
 # Make sure the internal filename of the gci file opened is valid
 ProperInternalName = stringToInt("mariost_save_file")
@@ -77,7 +75,7 @@ ProperInternalName = stringToInt("mariost_save_file")
 if InternalName != ProperInternalName:
 	f.close()
 	input("You must pass in a proper TTYD gci file. Press Enter to close this window.")
-	sys.exit('')
+	sys.exit("")
 
 # Get the offset to the currently-selected file
 OffsetFirstFile = ((FileNumber - 1) * 0x4000) + 0x2040
@@ -101,9 +99,9 @@ else:
 	TempOffset = 0x104
 
 f.seek(OffsetFirstFile + TempOffset, 0)
-f.write(InitAsmFuncPtr.to_bytes(4, byteorder='big', signed=False))
+f.write(InitAsmFuncPtr.to_bytes(4, byteorder="big", signed=False))
 f.seek(OffsetSecondFile + TempOffset, 0)
-f.write(InitAsmFuncPtr.to_bytes(4, byteorder='big', signed=False))
+f.write(InitAsmFuncPtr.to_bytes(4, byteorder="big", signed=False))
 
 # Write the pointer to the current anim data for the partner
 # JP does not need this pointer
@@ -117,22 +115,22 @@ if GameId != ID_JP:
 		TempOffset = 0x100
 	
 	f.seek(OffsetFirstFile + TempOffset, 0)
-	f.write(AnimDataPtr.to_bytes(4, byteorder='big', signed=False))
+	f.write(AnimDataPtr.to_bytes(4, byteorder="big", signed=False))
 	f.seek(OffsetSecondFile + TempOffset, 0)
-	f.write(AnimDataPtr.to_bytes(4, byteorder='big', signed=False))
+	f.write(AnimDataPtr.to_bytes(4, byteorder="big", signed=False))
 
 # Make sure the selected file is an existing file
 f.seek(OffsetFirstFile, 0)
-f.write((0).to_bytes(2, byteorder='big', signed=False))
+f.write((0).to_bytes(2, byteorder="big", signed=False))
 f.seek(OffsetSecondFile, 0)
-f.write((0).to_bytes(2, byteorder='big', signed=False))
+f.write((0).to_bytes(2, byteorder="big", signed=False))
 
 # Write the new file name
 FileNameString = "REL Loader\0"
 f.seek(OffsetFirstFile + 0x11C4, 0)
-f.write(stringToInt(FileNameString).to_bytes(len(FileNameString), byteorder='big', signed=False))
+f.write(stringToInt(FileNameString).to_bytes(len(FileNameString), byteorder="big", signed=False))
 f.seek(OffsetSecondFile + 0x11C4, 0)
-f.write(stringToInt(FileNameString).to_bytes(len(FileNameString), byteorder='big', signed=False))
+f.write(stringToInt(FileNameString).to_bytes(len(FileNameString), byteorder="big", signed=False))
 
 # Set the current follower Id
 CurrentFollowerValue = 0
@@ -142,9 +140,9 @@ else:
 	CurrentFollowerValue = 0x4F7F
 
 f.seek(OffsetFirstFile + 0x11EC, 0)
-f.write(CurrentFollowerValue.to_bytes(4, byteorder='big', signed=False))
+f.write(CurrentFollowerValue.to_bytes(4, byteorder="big", signed=False))
 f.seek(OffsetSecondFile + 0x11EC, 0)
-f.write(CurrentFollowerValue.to_bytes(4, byteorder='big', signed=False))
+f.write(CurrentFollowerValue.to_bytes(4, byteorder="big", signed=False))
 
 # Write the init asm function
 VersionText = ""
@@ -166,11 +164,11 @@ Func = g.read()
 
 f.seek(OffsetFirstFile + TempOffset, 0)
 for b in Func:
-	f.write(b.to_bytes(1, byteorder='big', signed=False))
+	f.write(b.to_bytes(1, byteorder="big", signed=False))
 
 f.seek(OffsetSecondFile + TempOffset, 0)
 for b in Func:
-	f.write(b.to_bytes(1, byteorder='big', signed=False))
+	f.write(b.to_bytes(1, byteorder="big", signed=False))
 g.close()
 
 # Write the main asm function
@@ -179,7 +177,7 @@ if GameId == ID_JP:
 else:
 	TempOffset = 0x2260
 
-# Open the file containing the init asm function
+# Open the file containing the main asm function
 g = open("bin/Main_" + VersionText + ".bin", "rb")
 
 # Perform the write
@@ -187,11 +185,11 @@ Func = g.read()
 
 f.seek(OffsetFirstFile + TempOffset, 0)
 for b in Func:
-	f.write(b.to_bytes(1, byteorder='big', signed=False))
+	f.write(b.to_bytes(1, byteorder="big", signed=False))
 
 f.seek(OffsetSecondFile + TempOffset, 0)
 for b in Func:
-	f.write(b.to_bytes(1, byteorder='big', signed=False))
+	f.write(b.to_bytes(1, byteorder="big", signed=False))
 g.close()
 
 # Get the sum of the bytes for the data field
@@ -210,14 +208,14 @@ for b in DataField:
 
 # Set the checksum of the bytes for the data field
 f.seek(OffsetFirstFile + 0x3FF8, 0)
-f.write(DataFieldSum.to_bytes(4, byteorder='big', signed=False))
+f.write(DataFieldSum.to_bytes(4, byteorder="big", signed=False))
 f.seek(OffsetSecondFile + 0x3FF8, 0)
-f.write(DataFieldSum.to_bytes(4, byteorder='big', signed=False))
+f.write(DataFieldSum.to_bytes(4, byteorder="big", signed=False))
 
 # Set the inverted checksum of the bytes for the data field
 f.seek(OffsetFirstFile + 0x3FFC, 0)
-f.write((~DataFieldSum).to_bytes(4, byteorder='big', signed=True))
+f.write((~DataFieldSum).to_bytes(4, byteorder="big", signed=True))
 f.seek(OffsetSecondFile + 0x3FFC, 0)
-f.write((~DataFieldSum).to_bytes(4, byteorder='big', signed=True))
+f.write((~DataFieldSum).to_bytes(4, byteorder="big", signed=True))
 
 f.close()
