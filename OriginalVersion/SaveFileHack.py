@@ -19,9 +19,31 @@ if not FileName.endswith(".gci"):
 	input("You must pass in a proper TTYD gci file. Press Enter to close this window.")
 	sys.exit("")
 
+# Check if the version number was passed in
+VersionNumberString = ""
+if len(sys.argv) < 3:
+	 while (VersionNumberString == ""):
+		VersionNumberString = input("Enter the number of the version to use (1-2): ")
+		
+		# Make sure the input is valid
+		if (not VersionNumberString.isdigit()) or (int(VersionNumberString) < 1) or (int(VersionNumberString) > 2):
+			VersionNumberString = ""
+else:
+	VersionNumberString = sys.argv[2]
+	if (not VersionNumberString.isdigit()) or (int(VersionNumberString) < 1) or (int(VersionNumberString) > 2):
+		VersionNumberString = ""
+		
+		# Prompt for the version number to use
+		while (VersionNumberString == ""):
+			VersionNumberString = input("Enter the number of the version to use (1-2): ")
+			
+			# Make sure the input is valid
+			if (not VersionNumberString.isdigit()) or (int(VersionNumberString) < 1) or (int(VersionNumberString) > 2):
+				VersionNumberString = ""
+
 # Check if the file number was passed in
 FileNumberString = ""
-if len(sys.argv) < 3:
+if len(sys.argv) < 4:
 	
 	# Prompt for the file number to use
 	while (FileNumberString == ""):
@@ -31,7 +53,7 @@ if len(sys.argv) < 3:
 		if (not FileNumberString.isdigit()) or (int(FileNumberString) < 1) or (int(FileNumberString) > 4):
 			FileNumberString = ""
 else:
-	FileNumberString = sys.argv[2]
+	FileNumberString = sys.argv[3]
 	
 	# Make sure the input is valid
 	if (not FileNumberString.isdigit()) or (int(FileNumberString) < 1) or (int(FileNumberString) > 4):
@@ -126,7 +148,7 @@ f.seek(OffsetSecondFile, 0)
 f.write((0).to_bytes(2, byteorder="big", signed=False))
 
 # Write the new file name
-FileNameString = "REL Loader\0"
+FileNameString = "REL Loader v" + VersionNumberString + "\0"
 f.seek(OffsetFirstFile + 0x11C4, 0)
 f.write(stringToInt(FileNameString).to_bytes(len(FileNameString), byteorder="big", signed=False))
 f.seek(OffsetSecondFile + 0x11C4, 0)
@@ -178,7 +200,7 @@ else:
 	TempOffset = 0x2260
 
 # Open the file containing the main asm function
-g = open("bin/Main_" + VersionText + ".bin", "rb")
+g = open("bin/Main_" + VersionText + "_V" + VersionNumberString + ".bin", "rb")
 
 # Perform the write
 Func = g.read()

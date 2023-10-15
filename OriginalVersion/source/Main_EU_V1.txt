@@ -1,0 +1,416 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2020 Linus S. (aka PistonMiner)
+
+# Modifications made by Zephiles
+
+# Set global function/variable/offset locations/values
+.set LOADER_SIZE,(__end - __start)
+.set LOADER_ARENA_LOCATION,0x80B00000
+.set LOADER_LOWMEM_LOCATION,0x80004888
+
+.set SAVE_REGION_START_OFFSET,0x22C8
+.set SAVE_REGION_END_OFFSET,0x22CC
+.set CARDMGR_WORK_PTR_OFFSET,0x1C78
+
+.set PAYLOAD_HOOK_LOCATION,0x800710F4
+
+.set gcResetCheck,0x8006FF98
+.set __OSReboot,0x8029F0C0
+.set Run_main,0x8029C094
+.set Run_restart,0x81303BB4
+
+.set memmove,0x8026DB00
+.set DCFlushRange,0x8029A88C
+.set ICInvalidateRange,0x8029A970
+
+.set __memFree,0x800301AC
+.set __memAlloc,0x800301D8
+.set OSLink,0x8029E930
+.set OSUnlink,0x8029EB8C
+.set CARDGetResultCode,0x802B07C0
+.set CARDCheckAsync,0x802B34E4
+.set CARDProbeEx,0x802B3610
+.set CARDMountAsync,0x802B3D18
+.set CARDUnmount,0x802B3F54
+.set CARDOpen,0x802B4C58
+.set CARDClose,0x802B4D74
+.set CARDReadAsync,0x802B5408
+
+__start:
+# Hook __OSReboot
+lis r3,__OSReboot@h
+ori r3,r3,__OSReboot@l
+bl main_pic
+
+main_pic:
+mflr r4
+addi r4,r4,(__OSReboot_hook - main_pic)
+bl writeBranch
+
+# Begin reset
+# gpGlobals->softResetType = 1
+lwz r3,-0x6F50(r13)
+li r4,1
+stw r4,0x1278(r3)
+
+# Call gcResetCheck without returning
+lis r3,gcResetCheck@h
+ori r3,r3,gcResetCheck@l
+mtctr r3
+bctr
+
+# Runs out of initial location. Relocates to arena location, sets saved region
+# and patches Run in game binary.
+__OSReboot_hook:
+stwu sp,-0x20(sp)
+mflr r0
+stw r0,0x24(sp)
+stmw r28,0x8(sp)
+
+# Save arguments for original function
+mr r30,r3
+mr r31,r4
+
+# Initialize static values used for addresses
+lis r29,LOADER_ARENA_LOCATION@h
+lis r28,Run_main@h
+
+# Relocate into arena memory
+mr r3,r29 # LOADER_ARENA_LOCATION
+bl __OSReboot_hook_pic
+
+__OSReboot_hook_pic:
+mflr r4
+addi r4,r4,(__start - __OSReboot_hook_pic)
+li r5,LOADER_SIZE
+lis r12,memmove@h
+ori r12,r12,memmove@l
+mtlr r12
+blrl
+
+mr r3,r29 # LOADER_ARENA_LOCATION
+li r4,LOADER_SIZE
+bl makeCodeChangesVisible
+
+# Set the saved region start and end
+stw r29,SAVE_REGION_START_OFFSET(r13)
+addi r3,r29,LOADER_SIZE
+stw r3,SAVE_REGION_END_OFFSET(r13)
+
+# Set up Run hook in main binary
+ori r3,r28,Run_main@l
+ori r4,r29,(LOADER_ARENA_LOCATION + (Run_main_hook - __start))@l
+bl writeBranch
+
+# Back into __OSReboot
+ori r12,r28,(__OSReboot + 4)@l
+mtctr r12
+
+# Restore arguments for original function
+mr r3,r30
+mr r4,r31
+
+lmw r28,0x8(sp)
+lwz r0,0x24(sp)
+mtlr r0
+addi sp,sp,0x20
+bctr
+
+# Runs out of arena location. Called when restart binary is about to be
+# executed. Patch restart binary.
+Run_main_hook:
+# This is just before loading a new DOL which will reset everything, so we
+# don't need to worry about preserving register contents
+
+# Save entrypoint
+mr r31,r3
+
+# Set up Run hook in restart DOL
+lis r3,Run_restart@h
+ori r3,r3, Run_restart@l
+lis r4,(LOADER_ARENA_LOCATION + (Run_restart_hook - __start))@h
+ori r4,r4,(LOADER_ARENA_LOCATION + (Run_restart_hook - __start))@l
+bl writeBranch
+
+# Restore entrypoint
+mr r3,r31
+
+# Back into Run
+b ((Run_main + 4) - LOADER_ARENA_LOCATION + __start)
+
+# Runs out of arena location. Called when game binary is about to be executed.
+# Relocates to low memory and patches reloaded game DOL.
+Run_restart_hook:
+# This is just before loading a new DOL which will reset everything, so we
+# don't need to worry about preserving register contents
+
+# Save entrypoint
+mr r31,r3
+
+# Relocate to low memory
+lis r30,LOADER_LOWMEM_LOCATION@h
+ori r3,r30,LOADER_LOWMEM_LOCATION@l
+lis r4,LOADER_ARENA_LOCATION@h
+li r5,LOADER_SIZE
+bl (memmove - LOADER_ARENA_LOCATION + __start)
+
+ori r3,r30,LOADER_LOWMEM_LOCATION@l
+li r4,LOADER_SIZE
+bl makeCodeChangesVisible
+
+# Place hook for payload
+lis r3,PAYLOAD_HOOK_LOCATION@h
+ori r3,r3,PAYLOAD_HOOK_LOCATION@l
+ori r4,r30,(LOADER_LOWMEM_LOCATION + (gPayload - __start))@l
+bl writeBranch
+
+# Place restart hook
+lis r3,__OSReboot@h
+ori r3,r3,__OSReboot@l
+lis r4,(LOADER_LOWMEM_LOCATION + (__OSReboot_hook - __start))@h
+ori r4,r4,(LOADER_LOWMEM_LOCATION + (__OSReboot_hook - __start))@l
+bl writeBranch
+
+# Restore entrypoint
+mr r3,r31
+
+# Back into Run
+b ((Run_restart + 4) - LOADER_ARENA_LOCATION + __start)
+
+writeBranch:
+# Write instruction
+subf r4,r3,r4
+rlwinm r4,r4,0,6,29
+lis r5,0x4800
+or r5,r5,r4
+stw r5,0(r3)
+
+# Make visible, tailcall
+li r4,4
+
+makeCodeChangesVisible:
+stwu sp,-0x20(sp)
+mflr r0
+stw r0,0x24(sp)
+stmw r29,0x8(sp)
+
+mr r31,r3 # address
+mr r30,r4 # size
+
+lis r29,DCFlushRange@h
+ori r5,r29,DCFlushRange@l
+mtlr r5
+blrl
+
+ori r3,r29,ICInvalidateRange@l
+mtlr r3
+mr r3,r31 # address
+mr r4,r30 # size
+blrl
+
+lmw r29,0x8(sp)
+lwz r0,0x24(sp)
+mtlr r0
+addi sp,sp,0x20
+blr
+
+gPayload:
+# Original REL Loader code with some modifications
+# Code created by PistonMiner and Zephiles
+
+# Initialize static values used for addresses
+lis r31,0x8000
+
+li r30,0 # Used to check if a REL file is loaded or not
+
+# Check if a Memory Card is present
+# To avoid an infinite loop, only check for a memory card a set amount of times
+lis r29,0x000F
+ori r29,r29,0x4240 # Check 1,000,000 times
+
+checkForMemoryCardLoop:
+li r3,0 # Memory Card Slot A
+li r4,0 # Pointer to the Memory Size (Not needed, so NULL)
+li r5,0 # Pointer to the Sector Size (Not needed, so NULL)
+bl (CARDProbeEx - LOADER_LOWMEM_LOCATION + __start)
+cmpwi r3,-1 # CARD_RESULT_BUSY
+bne- exitCheckForMemoryCardLoop
+
+# Exit if the limit has been reached
+subic. r29,r29,1
+bgt+ checkForMemoryCardLoop
+
+exitCheckForMemoryCardLoop:
+cmpwi r3,0 # Check if something went wrong
+bne- exit
+
+# Mount the Memory Card
+li r3,0 # Memory Card Slot A
+lwz r4,CARDMGR_WORK_PTR_OFFSET(r13)
+lwz r4,0x4(r4) # Pointer to the Work Area
+li r5,0 # Detach Callback function (Want to avoid using, so NULL)
+li r6,0 # Attach Callback function (Want to avoid using, so NULL)
+bl (CARDMountAsync - LOADER_LOWMEM_LOCATION + __start)
+bl finishAsyncMemoryCardFunc
+cmpwi r3,0 # Ready
+beq+ checkForErrors
+cmpwi r3,-6 # Broken
+beq- checkForErrors
+b exit
+
+checkForErrors:
+# Check for and attempt to repair memory card errors
+li r3,0 # Memory Card Slot A
+li r4,0 # Callback function (Want to avoid using, so NULL)
+bl (CARDCheckAsync - LOADER_LOWMEM_LOCATION + __start)
+bl finishAsyncMemoryCardFunc
+cmpwi r3,0 # Check if something went wrong
+bne- exit
+
+# Allocate memory for CardFileInfo
+li r4,0x14
+bl allocateMemory
+
+# Backup the returned address to be used for later
+mr r29,r3
+
+# Open the file
+li r3,0 # Memory Card Slot A
+ori r4,r31,(LOADER_LOWMEM_LOCATION + internalFilenameString)@l
+mr r5,r29 # Pointer to CardFileInfo
+bl (CARDOpen - LOADER_LOWMEM_LOCATION + __start)
+cmpwi r3,0 # Check if something went wrong
+bne- freeCardFileInfo
+
+# Allocate 0x200 bytes of memory, as the read size must be in multiples of 0x200 bytes
+li r4,0x200 # Bytes to allocate
+bl allocateMemory
+
+# Backup the returned address to be used for later
+mr r27,r3
+
+# Read from the Card
+mr r3,r29 # Pointer to CardFileInfo
+mr r4,r27 # Pointer to the File Buffer
+li r5,0x200 # Amount of bytes to read
+li r6,0x2000 # Offset in the file to start reading from
+li r7,0 # Read Callback function (Want to avoid using, so NULL)
+bl (CARDReadAsync - LOADER_LOWMEM_LOCATION + __start)
+bl finishAsyncMemoryCardFunc
+cmpwi r3,0 # Check if something went wrong
+bne- freeCurrentMemoryArea
+
+# Get the file size and adjust it to be in multiples of 0x200 bytes
+lwz r28,0x40(r27) # File Size
+addi r28,r28,511
+rlwinm r28,r28,0,0,22
+
+# Free the 0x200 bytes from earlier
+mr r4,r27
+bl freeMemory
+
+# Allocate more bytes based on the adjusted file size
+mr r4,r28
+bl allocateMemory
+
+# Backup the returned address to be used for later
+mr r27,r3
+
+# Read the REL Area of the file
+mr r3,r29 # Pointer to CardFileInfo
+mr r4,r27 # Pointer to the File Buffer
+mr r5,r28 # Adjusted File Size
+li r6,0x2200 # Offset in the file to start reading from
+li r7,0 # Read Callback Function (Want to avoid using, so NULL)
+bl (CARDReadAsync - LOADER_LOWMEM_LOCATION + __start)
+bl finishAsyncMemoryCardFunc
+cmpwi r3,0 # Check if something went wrong
+bne- freeCurrentMemoryArea
+
+# Get the BSS Area size and allocate memory for it
+lwz r4,0x20(r27)
+bl allocateMemory
+
+# Backup the returned address to be used for later
+mr r28,r3
+
+# Link the functions in the REL
+mr r3,r27 # Pointer to the Module
+mr r4,r28 # Pointer to the BSS Area
+bl (OSLink - LOADER_LOWMEM_LOCATION + __start)
+cmpwi r3,1 # Check if something went wrong
+bne- freeRemainingMemory
+
+# Store the BSS Area and the Module
+stw r28,0x414C(r31) # Pointer to the BSS Area
+stw r27,0x4150(r31) # Pointer to the Module
+
+# Get the REL Prolog Pointer
+lwz r30,0x34(r27)
+
+# Done, so close and unmount the card
+b closeCard
+
+# Function definitions, error handling, etc.
+freeMemory:
+li r3,0 # Heap to use
+b (__memFree - LOADER_LOWMEM_LOCATION + __start)
+
+allocateMemory:
+li r3,0 # Heap to use
+b (__memAlloc - LOADER_LOWMEM_LOCATION + __start)
+
+finishAsyncMemoryCardFunc:
+cmpwi r3,0 # Check if something went wrong
+bnelr-
+mflr r14
+
+finishAsyncMemoryCardFuncLoop:
+li r3,0 # Memory Card Slot A
+bl (CARDGetResultCode - LOADER_LOWMEM_LOCATION + __start)
+cmpwi r3,-1 # CARD_RESULT_BUSY
+beq+ finishAsyncMemoryCardFuncLoop
+mtlr r14
+blr
+
+freeRemainingMemory:
+mr r3,r27 # Pointer to the Module
+bl (OSUnlink - LOADER_LOWMEM_LOCATION + __start)
+
+# Free the BSS Area and the File Buffer
+mr r4,r28 # Pointer to the BSS Area
+bl freeMemory
+
+freeCurrentMemoryArea:
+mr r4,r27 # Pointer to the File Buffer or the 0x200 Bytes Buffer
+bl freeMemory
+
+closeCard:
+mr r3,r29 # Pointer to CardFileInfo
+bl (CARDClose - LOADER_LOWMEM_LOCATION + __start)
+
+freeCardFileInfo:
+mr r4,r29
+bl freeMemory
+
+# Unmount the Memory Card
+li r3,0 # Memory Card Slot A
+bl (CARDUnmount - LOADER_LOWMEM_LOCATION + __start)
+
+# Run the REL Prolog if the load was successful
+cmpwi r30,0
+beq- exit
+mtlr r30
+blrl
+
+exit:
+# Add back in the overwritten instruction
+li r3,0
+
+# Go back to the main function
+b ((PAYLOAD_HOOK_LOCATION + 4) - LOADER_LOWMEM_LOCATION + __start)
+
+internalFilenameString:
+.asciz "rel"
+
+__end:

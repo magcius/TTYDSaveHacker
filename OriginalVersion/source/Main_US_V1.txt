@@ -23,17 +23,18 @@
 .set DCFlushRange,0x80296A54
 .set ICInvalidateRange,0x80296B0C
 
-.set CARDProbeEx,0x802AF594
-.set CARDMountAsync,0x802AFC9C
-.set CARDOpen,0x802B0BDC
-.set CARDReadAsync,0x802B138C
-.set OSLink,0x8029A8E4
 .set __memFree,0x800300C4
 .set __memAlloc,0x800300F0
-.set CARDGetResultCode,0x802AC744
+.set OSLink,0x8029A8E4
 .set OSUnlink,0x8029AB40
-.set CARDClose,0x802B0CF8
+.set CARDGetResultCode,0x802AC744
+.set CARDCheckAsync,0x802AF468
+.set CARDProbeEx,0x802AF594
+.set CARDMountAsync,0x802AFC9C
 .set CARDUnmount,0x802AFED8
+.set CARDOpen,0x802B0BDC
+.set CARDClose,0x802B0CF8
+.set CARDReadAsync,0x802B138C
 
 __start:
 # Hook __OSReboot
@@ -72,7 +73,7 @@ mr r31,r4
 
 # Initialize static values used for addresses
 lis r29,LOADER_ARENA_LOCATION@h
-lis r28,0x8029
+lis r28,Run_main@h
 
 # Relocate into arena memory
 mr r3,r29 # LOADER_ARENA_LOCATION
@@ -196,7 +197,7 @@ stmw r29,0x8(sp)
 mr r31,r3 # address
 mr r30,r4 # size
 
-lis r29,0x8029
+lis r29,DCFlushRange@h
 ori r5,r29,DCFlushRange@l
 mtlr r5
 blrl
@@ -250,12 +251,24 @@ lwz r4,0x4(r4) # Pointer to the Work Area
 li r5,0 # Detach Callback function (Want to avoid using, so NULL)
 li r6,0 # Attach Callback function (Want to avoid using, so NULL)
 bl (CARDMountAsync - LOADER_LOWMEM_LOCATION + __start)
-bl finishAsyncFunction
+bl finishAsyncMemoryCardFunc
+cmpwi r3,0 # Ready
+beq+ checkForErrors
+cmpwi r3,-6 # Broken
+beq- checkForErrors
+b exit
+
+checkForErrors:
+# Check for and attempt to repair memory card errors
+li r3,0 # Memory Card Slot A
+li r4,0 # Callback function (Want to avoid using, so NULL)
+bl (CARDCheckAsync - LOADER_LOWMEM_LOCATION + __start)
+bl finishAsyncMemoryCardFunc
 cmpwi r3,0 # Check if something went wrong
 bne- exit
 
 # Allocate memory for CardFileInfo
-li r4,20
+li r4,0x14
 bl allocateMemory
 
 # Backup the returned address to be used for later
@@ -283,7 +296,7 @@ li r5,0x200 # Amount of bytes to read
 li r6,0x2000 # Offset in the file to start reading from
 li r7,0 # Read Callback function (Want to avoid using, so NULL)
 bl (CARDReadAsync - LOADER_LOWMEM_LOCATION + __start)
-bl finishAsyncFunction
+bl finishAsyncMemoryCardFunc
 cmpwi r3,0 # Check if something went wrong
 bne- freeCurrentMemoryArea
 
@@ -310,7 +323,7 @@ mr r5,r28 # Adjusted File Size
 li r6,0x2200 # Offset in the file to start reading from
 li r7,0 # Read Callback Function (Want to avoid using, so NULL)
 bl (CARDReadAsync - LOADER_LOWMEM_LOCATION + __start)
-bl finishAsyncFunction
+bl finishAsyncMemoryCardFunc
 cmpwi r3,0 # Check if something went wrong
 bne- freeCurrentMemoryArea
 
@@ -347,16 +360,16 @@ allocateMemory:
 li r3,0 # Heap to use
 b (__memAlloc - LOADER_LOWMEM_LOCATION + __start)
 
-finishAsyncFunction:
+finishAsyncMemoryCardFunc:
 cmpwi r3,0 # Check if something went wrong
 bnelr-
 mflr r14
 
-finishAsyncFunctionLoop:
+finishAsyncMemoryCardFuncLoop:
 li r3,0 # Memory Card Slot A
 bl (CARDGetResultCode - LOADER_LOWMEM_LOCATION + __start)
 cmpwi r3,-1 # CARD_RESULT_BUSY
-beq+ finishAsyncFunctionLoop
+beq+ finishAsyncMemoryCardFuncLoop
 mtlr r14
 blr
 

@@ -18,9 +18,18 @@ const BinaryDataInit = {
 };
 
 const BinaryDataMain = {
-    [GameVersion.JP]: ${buildData('bin/Main_JP.bin')},
-    [GameVersion.EU]: ${buildData('bin/Main_EU.bin')},
-    [GameVersion.US]: ${buildData('bin/Main_US.bin')},
+    [GameVersion.JP]: {
+        [PatchVersion.V1]: ${buildData('bin/Main_JP_V1.bin')},
+        [PatchVersion.V2]: ${buildData('bin/Main_JP_V2.bin')},
+    },
+    [GameVersion.EU]: {
+        [PatchVersion.V1]: ${buildData('bin/Main_EU_V1.bin')},
+        [PatchVersion.V2]: ${buildData('bin/Main_EU_V2.bin')},
+    },
+    [GameVersion.US]: {
+        [PatchVersion.V1]: ${buildData('bin/Main_US_V1.bin')},
+        [PatchVersion.V2]: ${buildData('bin/Main_US_V2.bin')},
+    },
 };
 `;
     fs.writeFileSync(path.join(__dirname, 'BinaryData.ts'), out);
