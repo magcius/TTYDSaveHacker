@@ -257,10 +257,10 @@ gPayload:
 # Code created by PistonMiner and Zephiles
 
 # Push stack
-stwu sp,-0x50(sp)
+stwu sp,-0x58(sp)
 mflr r0
-stw r0,0x54(sp)
-stmw r22,0x28(sp)
+stw r0,0x5C(sp)
+stmw r21,0x28(sp)
 
 # Backup function parameters
 stw r3,0x8(sp)
@@ -356,7 +356,7 @@ cmpwi r3,0 # Check if something went wrong
 bne- unmountMemoryCard
 
 # Allocate 0x400 bytes of memory, as the read size must be in multiples of 0x200 bytes,
-# and the BSS Area size, the fixed REL size, and the BSS Align are needed later
+# and the REL Align, BSS Area size, the fixed REL size, and the BSS Align are needed later
 li r3,0x400 # Bytes to allocate
 li r4,0x20 # The buffer used by CARDRead must be aligned to 0x20 bytes
 bl (OSAllocFromArenaLo - LOADER_LOWMEM_LOCATION + __start)
@@ -376,8 +376,9 @@ cmpwi r3,0 # Check if something went wrong
 li r5,0x400 # Size used
 bne- freeCurrentMemoryArea
 
-# Get the File Size, as it will be used later
+# Get the File Size and the REL's alignment requirement, as they will be used later
 lwz r6,0x40(r25) # File Size
+lwz r21,0x240(r25) # align; 0x200 + 0x40
 
 # Adjust the File Size to be in multiples of 0x200 bytes
 addi r26,r6,511
@@ -418,9 +419,17 @@ fileSizeIsValid:
 # Restore the original arena lo address, effectively freeing the 0x400 bytes from earlier
 stw r31,ARENA_LO_OFFSET(r13)
 
+# The REL must be aligned to a specific value that it specifies, while the buffer used by
+# CARDRead must be aligned to 0x20 bytes. The REL's alignmemt will always be a power of 2,
+# so the higher of the two values can just be used for the alignment
+cmplwi r21,0x20 # align
+bge- gotAllocationAlignmentValue
+li r21,0x20
+
+gotAllocationAlignmentValue:
 # Allocate memory for the File and BSS
 mr r3,r23 # File Size + BSS Area Size
-li r4,0x20 # REL files require an alignment of 0x20
+mr r4,r21 # alignment
 bl (OSAllocFromArenaLo - LOADER_LOWMEM_LOCATION + __start)
 
 # Backup the returned address to be used for later
@@ -571,10 +580,10 @@ lwz r3,0x8(sp)
 lwz r4,0xC(sp)
 
 # Pop stack
-lmw r22,0x28(sp)
-lwz r0,0x54(sp)
+lmw r21,0x28(sp)
+lwz r0,0x5C(sp)
 mtlr r0
-addi sp,sp,0x50
+addi sp,sp,0x58
 
 # Add back in the overwritten instruction
 stwu sp,-0x10(sp)
